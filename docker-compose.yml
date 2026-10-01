@@ -1,0 +1,83 @@
+services:
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: control-plane-api
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://control_user:control_password@postgres:5432/control_plane
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - .:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: control-plane-postgres
+    environment:
+      POSTGRES_USER: control_user
+      POSTGRES_PASSWORD: control_password
+      POSTGRES_DB: control_plane
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: control-plane-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  controller:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: control-plane-controller
+    environment:
+      DATABASE_URL: postgresql://control_user:control_password@postgres:5432/control_plane
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - postgres
+      - redis
+    command: ["python", "-m", "app.controller_main"]
+    restart: unless-stopped
+
+
+
+  event-consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: control-plane-event-consumer
+    environment:
+      DATABASE_URL: postgresql://control_user:control_password@postgres:5432/control_plane
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - postgres
+      - redis
+    command: ["python", "-m", "app.event_consumer_main"]
+    restart: unless-stopped
+
+
+
+
+
+volumes:
+  postgres_data:
+  redis_data:
